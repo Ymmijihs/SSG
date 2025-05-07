@@ -78,7 +78,42 @@ def test_text_node_unsupported_type(self):
         text_node_to_html_node(node)
     self.assertEqual(str(context.exception), "Not a supported TextType")
 
+    def test_split_nodes_delimiter_basic(self):
+        node = TextNode("This is a `code block` in text", TextType.TEXT)
+        new_nodes = split_nodes_delimiter([node], "`", TextType.CODE)
+        expected = [
+            TextNode("This is a ", TextType.TEXT),
+            TextNode("code block", TextType.CODE),
+            TextNode(" in text", TextType.TEXT),
+        ]
+        self.assertEqual(new_nodes, expected)
 
+    def test_split_nodes_delimiter_with_multiple(self):
+        node = TextNode("Using `inline code` and **bold text**", TextType.TEXT)
+        new_nodes_code = split_nodes_delimiter([node], "`", TextType.CODE)
+        # Handling the inline code
+        expected_code = [
+            TextNode("Using ", TextType.TEXT),
+            TextNode("inline code", TextType.CODE),
+            TextNode(" and **bold text**", TextType.TEXT),
+        ]
+        self.assertEqual(new_nodes_code, expected_code)
+
+        # Now handling bold text
+        node_bold = TextNode("Using `code` and **bold text**", TextType.TEXT)
+        new_nodes_bold = split_nodes_delimiter([node_bold], "**", TextType.BOLD)
+        expected_bold = [
+            TextNode("Using `code` and ", TextType.TEXT),
+            TextNode("bold text", TextType.BOLD),
+            TextNode("", TextType.TEXT),  # Expecting an empty text for trailing
+        ]
+        self.assertEqual(new_nodes_bold, expected_bold)
+
+    def test_split_nodes_delimiter_no_delimiter(self):
+        node = TextNode("Just a simple text without delimiter", TextType.TEXT)
+        new_nodes = split_nodes_delimiter([node], "`", TextType.CODE)
+        expected = [TextNode("Just a simple text without delimiter", TextType.TEXT)]
+        self.assertEqual(new_nodes, expected)
 
 if __name__ == "__main__":
     unittest.main()
