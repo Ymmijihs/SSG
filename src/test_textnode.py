@@ -1,6 +1,6 @@
 import unittest
 
-from textnode import TextNode, TextType
+from textnode import *
 
 
 class TestTextNode(unittest.TestCase):
@@ -114,6 +114,47 @@ def test_text_node_unsupported_type(self):
         new_nodes = split_nodes_delimiter([node], "`", TextType.CODE)
         expected = [TextNode("Just a simple text without delimiter", TextType.TEXT)]
         self.assertEqual(new_nodes, expected)
+
+
+import unittest
+
+class TestMarkdownExtraction(unittest.TestCase):
+
+    def test_extract_markdown_images(self):
+        matches = extract_markdown_images(
+            "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png)"
+        )
+        self.assertListEqual([("image", "https://i.imgur.com/zjjcJKZ.png")], matches)
+
+    def test_multiple_images(self):
+        matches = extract_markdown_images(
+            "Two images: ![cat](https://i.imgur.com/cat.png) and ![dog](https://i.imgur.com/dog.png)"
+        )
+        self.assertListEqual(
+            [("cat", "https://i.imgur.com/cat.png"), 
+             ("dog", "https://i.imgur.com/dog.png")], 
+            matches
+        )
+    
+    def test_no_images(self):
+        matches = extract_markdown_images(
+            "This text does not contain any images."
+        )
+        self.assertListEqual([], matches)
+    
+    def test_empty_string(self):
+        matches = extract_markdown_images("")
+        self.assertListEqual([], matches)
+
+    def test_images_with_special_characters(self):
+        matches = extract_markdown_images(
+            "Image with special characters: ![coffee & tea](https://i.imgur.com/coffee_tea.png)"
+        )
+        self.assertListEqual(
+            [("coffee & tea", "https://i.imgur.com/coffee_tea.png")], 
+            matches
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
