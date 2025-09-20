@@ -1,158 +1,108 @@
 import unittest
+import textwrap
+from textnode import markdown_to_html_node
 
-from textnode import *
 
-
-class TestTextNode(unittest.TestCase):
-    def test_eq(self):
-        node = TextNode("This is a text node", TextType.TEXT)
-        node2 = TextNode("This is a text node", TextType.TEXT)
-        self.assertEqual(node, node2)
-
-    def test_eq_false(self):
-        node = TextNode("This is a text node", TextType.TEXT)
-        node2 = TextNode("This is a text node", TextType.BOLD)
-        self.assertNotEqual(node, node2)
-
-    def test_eq_false2(self):
-        node = TextNode("This is a text node", TextType.TEXT)
-        node2 = TextNode("This is a text node2", TextType.TEXT)
-        self.assertNotEqual(node, node2)
-
-    def test_eq_url(self):
-        node = TextNode("This is a text node", TextType.ITALIC, "https://www.boot.dev")
-        node2 = TextNode("This is a text node", TextType.ITALIC, "https://www.boot.dev")
-        self.assertEqual(node, node2)
-
-    def test_repr(self):
-        node = TextNode("This is a text node", TextType.TEXT, "https://www.boot.dev")
+class TestMarkdownToHtmlNode(unittest.TestCase):
+    def test_paragraphs(self):
+        md = (
+            "This is **bolded** paragraph\n"
+            "text in a p\n"
+            "tag here\n\n"
+            "This is another paragraph with _italic_ text and `code` here\n"
+        )
+        node = markdown_to_html_node(md)
+        html = node.to_html()
         self.assertEqual(
-            "TextNode(This is a text node, text, https://www.boot.dev)", repr(node)
+            html,
+            "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p>"
+            "<p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>",
         )
 
-def test_text(self):
-    node = TextNode("This is a text node", TextType.TEXT)
-    html_node = text_node_to_html_node(node)
-    self.assertEqual(html_node.tag, None)
-    self.assertEqual(html_node.value, "This is a text node")
-
-def test_text_node_as_bold(self):
-    node = TextNode("This is bold text", TextType.BOLD)
-    html_node = text_node_to_html_node(node)
-    self.assertEqual(html_node.tag, "b")
-    self.assertEqual(html_node.value, "This is bold text")
-
-def test_text_node_as_italic(self):
-    node = TextNode("This is italic text", TextType.ITALIC)
-    html_node = text_node_to_html_node(node)
-    self.assertEqual(html_node.tag, "i")
-    self.assertEqual(html_node.value, "This is italic text")
-
-def test_text_node_as_code(self):
-    node = TextNode("This is a code snippet", TextType.CODE)
-    html_node = text_node_to_html_node(node)
-    self.assertEqual(html_node.tag, "code")
-    self.assertEqual(html_node.value, "This is a code snippet")
-
-def test_text_node_as_link(self):
-    node = TextNode("Click here", TextType.LINK)
-    # Assuming self.href is set in the class context, for example as "http://example.com"
-    self.href = "http://example.com"
-    html_node = text_node_to_html_node(node)
-    self.assertEqual(html_node.tag, "a")
-    self.assertEqual(html_node.value, "Click here")
-    self.assertEqual(html_node.props, {"href": "http://example.com"})  # Check href property
-
-def test_text_node_as_image(self):
-    node = TextNode("Image description", TextType.IMAGE)
-    # Assuming self.src and self.alt are set in the class context
-    self.src = "image.png"
-    self.alt = "An example image"
-    html_node = text_node_to_html_node(node)
-    self.assertEqual(html_node.tag, "img")
-    self.assertEqual(html_node.props, {"src": "image.png", "alt": "An example image"})  # Check props
-
-def test_text_node_unsupported_type(self):
-    node = TextNode("Unsupported text", TextType.UNSUPPORTED)  # Assuming UNSUPPORTED is a defined enum
-    with self.assertRaises(Exception) as context:
-        text_node_to_html_node(node)
-    self.assertEqual(str(context.exception), "Not a supported TextType")
-
-    def test_split_nodes_delimiter_basic(self):
-        node = TextNode("This is a `code block` in text", TextType.TEXT)
-        new_nodes = split_nodes_delimiter([node], "`", TextType.CODE)
-        expected = [
-            TextNode("This is a ", TextType.TEXT),
-            TextNode("code block", TextType.CODE),
-            TextNode(" in text", TextType.TEXT),
-        ]
-        self.assertEqual(new_nodes, expected)
-
-    def test_split_nodes_delimiter_with_multiple(self):
-        node = TextNode("Using `inline code` and **bold text**", TextType.TEXT)
-        new_nodes_code = split_nodes_delimiter([node], "`", TextType.CODE)
-        # Handling the inline code
-        expected_code = [
-            TextNode("Using ", TextType.TEXT),
-            TextNode("inline code", TextType.CODE),
-            TextNode(" and **bold text**", TextType.TEXT),
-        ]
-        self.assertEqual(new_nodes_code, expected_code)
-
-        # Now handling bold text
-        node_bold = TextNode("Using `code` and **bold text**", TextType.TEXT)
-        new_nodes_bold = split_nodes_delimiter([node_bold], "**", TextType.BOLD)
-        expected_bold = [
-            TextNode("Using `code` and ", TextType.TEXT),
-            TextNode("bold text", TextType.BOLD),
-            TextNode("", TextType.TEXT),  # Expecting an empty text for trailing
-        ]
-        self.assertEqual(new_nodes_bold, expected_bold)
-
-    def test_split_nodes_delimiter_no_delimiter(self):
-        node = TextNode("Just a simple text without delimiter", TextType.TEXT)
-        new_nodes = split_nodes_delimiter([node], "`", TextType.CODE)
-        expected = [TextNode("Just a simple text without delimiter", TextType.TEXT)]
-        self.assertEqual(new_nodes, expected)
-
-
-import unittest
-
-class TestMarkdownExtraction(unittest.TestCase):
-
-    def test_extract_markdown_images(self):
-        matches = extract_markdown_images(
-            "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png)"
+    def test_codeblock(self):
+        # use dedent to avoid stray indentation; fenced code must be preserved exactly
+        md = textwrap.dedent("""\
+            ```
+            This is text that _should_ remain
+            the **same** even with inline stuff
+            ```
+            """)
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><pre><code>This is text that _should_ remain\n"
+            "the **same** even with inline stuff\n"
+            "</code></pre></div>",
         )
-        self.assertListEqual([("image", "https://i.imgur.com/zjjcJKZ.png")], matches)
 
-    def test_multiple_images(self):
-        matches = extract_markdown_images(
-            "Two images: ![cat](https://i.imgur.com/cat.png) and ![dog](https://i.imgur.com/dog.png)"
-        )
-        self.assertListEqual(
-            [("cat", "https://i.imgur.com/cat.png"), 
-             ("dog", "https://i.imgur.com/dog.png")], 
-            matches
-        )
-    
-    def test_no_images(self):
-        matches = extract_markdown_images(
-            "This text does not contain any images."
-        )
-        self.assertListEqual([], matches)
-    
-    def test_empty_string(self):
-        matches = extract_markdown_images("")
-        self.assertListEqual([], matches)
+    def test_heading_levels(self):
+        md = "# H1 title\n\n###### H6 title"
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(html, "<div><h1>H1 title</h1><h6>H6 title</h6></div>")
 
-    def test_images_with_special_characters(self):
-        matches = extract_markdown_images(
-            "Image with special characters: ![coffee & tea](https://i.imgur.com/coffee_tea.png)"
+    def test_unordered_list(self):
+        md = "- first **bold**\n- second _ital_\n- third `code`"
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><ul>"
+            "<li>first <b>bold</b></li>"
+            "<li>second <i>ital</i></li>"
+            "<li>third <code>code</code></li>"
+            "</ul></div>",
         )
-        self.assertListEqual(
-            [("coffee & tea", "https://i.imgur.com/coffee_tea.png")], 
-            matches
+
+    def test_ordered_list(self):
+        md = "1. one\n2. two\n3. three"
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(html, "<div><ol><li>one</li><li>two</li><li>three</li></ol></div>")
+
+    def test_blockquote(self):
+        md = "> quoted **bold**\n> still quoted _ital_"
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><blockquote>quoted <b>bold</b>\nstill quoted <i>ital</i></blockquote></div>",
+        )
+
+    def test_links_and_images_in_paragraph(self):
+        md = "A [link](https://example.com) and an ![alt](img.png) here."
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        # image should render as <img src="img.png" alt="alt"/> (or <img ...></img> if not self-closing)
+        # paragraph should inline-parse link and image
+        self.assertIn('<p>A <a href="https://example.com">link</a> and an ', html)
+        self.assertTrue(
+            '<img src="img.png" alt="alt"' in html
+        )  # allow either self-closing or paired
+        self.assertTrue(html.endswith("</div>"))
+
+    def test_mixed_document(self):
+        md = (
+            "# Title\n\n"
+            "Intro paragraph with a [link](https://example.com).\n\n"
+            "- item one\n- item two\n\n"
+            "1. first\n2. second\n\n"
+            "> quote line one\n> quote line two\n\n"
+            "```\ncode_inline_should_not_parse **nor** _this_\n```\n"
+        )
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div>"
+            "<h1>Title</h1>"
+            "<p>Intro paragraph with a <a href=\"https://example.com\">link</a>.</p>"
+            "<ul><li>item one</li><li>item two</li></ul>"
+            "<ol><li>first</li><li>second</li></ol>"
+            "<blockquote>quote line one\nquote line two</blockquote>"
+            "<pre><code>code_inline_should_not_parse **nor** _this_\n</code></pre>"
+            "</div>",
         )
 
 

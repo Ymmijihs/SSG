@@ -21,18 +21,28 @@ class HTMLNode:
 
 
 class LeafNode(HTMLNode):
-	def __init__(self, tag=None, value=None, props=None):
-		super().__init__(tag=tag, value=value, props=props)
+    def __init__(self, tag=None, value=None, props=None):
+        super().__init__(tag=tag, value=value, props=props)
 
-	def to_html(self):
-		if self.value is None:
-			raise ValueError("Value is missing")
-		props_html = self.props_to_html()
-		if not self.tag:
-			return f"{self.value}"
-		else:
-			return f"<{self.tag}{props_html}>{self.value}</{self.tag}>"
+    def to_html(self):
+        props_html = self.props_to_html()
 
+        # Plain text node (no tag)
+        if not self.tag:
+            if self.value is None:
+                raise ValueError("Value is missing for plain text node")
+            return f"{self.value}"
+
+        # HTML void elements: render self-closing when value is None
+        void_tags = {
+            "area", "base", "br", "col", "embed", "hr", "img",
+            "input", "link", "meta", "param", "source", "track", "wbr",
+        }
+        if self.value is None or self.tag in void_tags:
+            return f"<{self.tag}{props_html}/>"
+
+        # Normal element with value
+        return f"<{self.tag}{props_html}>{self.value}</{self.tag}>"
 
 class ParentNode(HTMLNode):
 	def __init__(self, tag, children, props=None):
