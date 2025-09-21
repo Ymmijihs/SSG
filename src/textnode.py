@@ -303,3 +303,25 @@ def markdown_to_html_node(markdown: str) -> ParentNode:
 
     # Wrap all block nodes in a single container <div>
     return ParentNode("div", children)
+
+import re
+
+def extract_title(markdown: str) -> str:
+    """
+    Extract the first H1 (# Heading) from a markdown document.
+    Strips leading '#' and whitespace.
+    Raises ValueError if no H1 is found.
+    """
+    if not markdown:
+        raise ValueError("Markdown input is empty")
+
+    # Normalize line endings and split
+    lines = markdown.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+    for line in lines:
+        # Match exactly one leading '#', followed by a space and text
+        m = re.match(r"^# (.+)$", line.strip())
+        if m:
+            return m.group(1).strip()
+
+    raise ValueError("No H1 header found in markdown")
