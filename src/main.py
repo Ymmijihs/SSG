@@ -1,8 +1,22 @@
 import os
 import shutil
+import sys
 from pathlib import Path
 from textnode import *
 
+def normalize_basepath(bp: str | None) -> str:
+    """Ensure basepath starts and ends with a single slash. Empty -> '/'."""
+    if not bp or bp.strip() == "/":
+        return "/"
+    bp = bp.strip()
+    if not bp.startswith("/"):
+        bp = "/" + bp
+    if not bp.endswith("/"):
+        bp = bp + "/"
+    # collapse any accidental doubles, except the leading one
+    while "//" in bp[1:]:
+        bp = bp[0] + bp[1:].replace("//", "/")
+    return bp
 
 def clear_directory(dir_path: Path) -> None:
     """
@@ -70,11 +84,13 @@ def copy_static_to_public(src: str = "static", dst: str = "public") -> None:
     print(f"[DONE]  Copied to {dst_path}")
 
 
-def generate_page(from_path: str | Path, template_path: str | Path, dest_path: str | Path) -> None:
-    """
-    Build a single HTML page from a markdown source and an HTML template.
-    Replaces {{ Title }} and {{ Content }} in the template, and writes to dest_path.
-    """
+def generate_page(
+    from_path: str | Path,
+    template_path: str | Path,
+    dest_path: str | Path,
+    basepath: str = "/",
+    _preloaded_template: str | None = None,
+) -> None:
     src = Path(from_path)
     tpl = Path(template_path)
     dest = Path(dest_path)
@@ -82,18 +98,27 @@ def generate_page(from_path: str | Path, template_path: str | Path, dest_path: s
     print(f"[PAGE] Generating page from {src} to {dest} using {tpl}")
 
     markdown = src.read_text(encoding="utf-8")
-    template = tpl.read_text(encoding="utf-8")
+    template = _preloaded_template if _preloaded_template is not None else tpl.read_text(encoding="utf-8")
 
+    # Convert markdown to HTML
     root_node = markdown_to_html_node(markdown)
     content_html = root_node.to_html()
 
+    # Extract title (raises if no H1)
     title = extract_title(markdown)
 
+    # Fill template
     final_html = (
         template
         .replace("{{ Title }}", title)
         .replace("{{ Content }}", content_html)
     )
+
+    # Rewrite root-relative href/src to be under basepath (but only if not '/')
+    basepath = normalize_basepath(basepath)
+    if basepath != "/":
+        final_html = final_html.replace('href="/', f'href="{basepath}')
+        final_html = final_html.replace('src="/', f'src="{basepath}')
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(final_html, encoding="utf-8")
@@ -105,15 +130,8 @@ def generate_pages_recursive(
     dir_path_content: str | Path,
     template_path: str | Path,
     dest_dir_path: str | Path,
+    basepath: str = "/",
 ) -> None:
-    """
-    Crawl dir_path_content for all *.md files and generate corresponding .html
-    files under dest_dir_path, preserving the directory structure.
-
-    Example:
-      content/blog/post.md  -> public/blog/post.html
-      content/index.md      -> public/index.html
-    """
     content_root = Path(dir_path_content)
     dest_root = Path(dest_dir_path)
     tpl_path = Path(template_path)
@@ -123,50 +141,42 @@ def generate_pages_recursive(
     if not tpl_path.exists():
         raise FileNotFoundError(f"Template not found: {tpl_path}")
 
-    # Load template once
     template = tpl_path.read_text(encoding="utf-8")
 
     for md_path in content_root.rglob("*.md"):
-        # Compute output path
-        rel = md_path.relative_to(content_root)              # e.g., blog/post.md
-        out_rel = rel.with_suffix(".html")                   # e.g., blog/post.html
+        rel = md_path.relative_to(content_root)
+        out_rel = rel.with_suffix(".html")
         dest_path = dest_root / out_rel
 
         print(f"[PAGE] Generating page from {md_path} to {dest_path} using {tpl_path}")
-
-        # Read markdown
         markdown = md_path.read_text(encoding="utf-8")
 
-        # Convert markdown to HTML
-        root_node = markdown_to_html_node(markdown)
-        content_html = root_node.to_html()
-
-        # Extract title (will raise if missing H1)
-        title = extract_title(markdown)
-
-        # Inject into template
-        final_html = (
-            template
-            .replace("{{ Title }}", title)
-            .replace("{{ Content }}", content_html)
+        generate_page(
+            from_path=md_path,
+            template_path=tpl_path,
+            dest_path=dest_path,
+            basepath=basepath,
+            _preloaded_template=template,  # optional optimization
         )
-
-        # Ensure destination directory exists and write file
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_text(final_html, encoding="utf-8")
-        print(f"[PAGE] Wrote {dest_path}")
-
 
         
 if __name__ == "__main__":
-    public_dir = Path("public")
+    import sys
 
-    # Copy static -> public (this also clears public first)
-    copy_static_to_public("static", "public")
+    # Grab basepath from CLI arg (default "/")
+    basepath = sys.argv[1] if len(sys.argv) > 1 else "/"
 
-    # Generate ALL markdown pages recursively
+    # 1) Delete anything in docs/
+    docs_dir = Path("docs")
+    clear_directory(docs_dir)
+
+    # 2) Copy static/ -> docs/
+    copy_static_to_public("static", "docs")
+
+    # 3) Generate all content/ -> docs/ using template.html
     generate_pages_recursive(
         dir_path_content="content",
         template_path="template.html",
-        dest_dir_path="public",
+        dest_dir_path="docs",
+        basepath=basepath,
     )
